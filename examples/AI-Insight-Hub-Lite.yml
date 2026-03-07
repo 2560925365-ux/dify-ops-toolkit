@@ -1,0 +1,583 @@
+app:
+  description: 'AI Insight Hub 简化版 - 测试 ArXiv 论文抓取和 Ernie 筛选功能'
+  icon: '🤖'
+  icon_background: '#E4FBCC'
+  mode: workflow
+  name: AI-Insight-Hub-Lite
+  use_icon_as_answer_icon: false
+
+dependencies:
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: paddle-aistudio/ernie-paddle-aistudio:0.1.1@3281d45224736abd0cd14336b54e1a6ddc681ca3fcc5528ae254957765d92adf
+      version: null
+
+kind: app
+version: 0.5.0
+
+workflow:
+  conversation_variables: []
+  environment_variables:
+    - description: '研究领域关键词'
+      id: research_topics
+      name: RESEARCH_TOPICS
+      selector:
+        - env
+        - RESEARCH_TOPICS
+      value: 'large language model,LLM,agent,RAG'
+      value_type: string
+    - description: '推送数量'
+      id: push_limit
+      name: PUSH_LIMIT
+      selector:
+        - env
+        - PUSH_LIMIT
+      value: '3'
+      value_type: string
+    - description: 'ArXiv 分类'
+      id: arxiv_categories
+      name: ARXIV_CATEGORIES
+      selector:
+        - env
+        - ARXIV_CATEGORIES
+      value: 'cs.AI,cs.CL,cs.LG'
+      value_type: string
+
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+
+  graph:
+    edges:
+      - data:
+          isInLoop: false
+          sourceType: start
+          targetType: code
+        id: start-config
+        source: 'start'
+        sourceHandle: source
+        target: 'config'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+
+      - data:
+          isInLoop: false
+          sourceType: code
+          targetType: http-request
+        id: config-arxiv
+        source: 'config'
+        sourceHandle: source
+        target: 'arxiv_fetch'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+
+      - data:
+          isInLoop: false
+          sourceType: http-request
+          targetType: code
+        id: arxiv-parse
+        source: 'arxiv_fetch'
+        sourceHandle: source
+        target: 'arxiv_parse'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+
+      - data:
+          isInLoop: false
+          sourceType: code
+          targetType: llm
+        id: parse-filter
+        source: 'arxiv_parse'
+        sourceHandle: source
+        target: 'llm_filter'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+
+      - data:
+          isInLoop: false
+          sourceType: llm
+          targetType: code
+        id: filter-json
+        source: 'llm_filter'
+        sourceHandle: source
+        target: 'json_parse'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+
+      - data:
+          isInLoop: false
+          sourceType: code
+          targetType: template-transform
+        id: json-template
+        source: 'json_parse'
+        sourceHandle: source
+        target: 'template'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+
+      - data:
+          isInLoop: false
+          sourceType: template-transform
+          targetType: end
+        id: template-end
+        source: 'template'
+        sourceHandle: source
+        target: 'end'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+
+    nodes:
+      # ==================== 开始节点 ====================
+      - data:
+          title: 开始
+          type: start
+          variables: []
+        id: 'start'
+        position:
+          x: -400
+          y: -400
+        type: custom
+
+      # ==================== 配置加载 ====================
+      - data:
+          code: |
+            def main(
+                research_topics: str,
+                push_limit: str,
+                arxiv_categories: str
+            ) -> dict:
+                """
+                加载并处理配置参数
+                """
+                from datetime import datetime, timedelta
+
+                # 处理关键词
+                keywords = [k.strip() for k in research_topics.split(',') if k.strip()]
+
+                # 处理分类
+                categories = [c.strip() for c in arxiv_categories.split(',') if c.strip()]
+
+                # 日期范围
+                today = datetime.now()
+                cutoff_date = today - timedelta(days=7)
+
+                # 构建 ArXiv 查询
+                kw_parts = []
+                for kw in keywords[:3]:
+                    kw_parts.append(f'(all:"{kw}")')
+                keyword_query = ' OR '.join(kw_parts)
+
+                cat_parts = [f'cat:{c}' for c in categories]
+                cat_query = ' OR '.join(cat_parts)
+
+                arxiv_query = f'({keyword_query}) AND ({cat_query})'
+
+                return {
+                    "keywords": keywords,
+                    "categories": categories,
+                    "push_limit": int(push_limit),
+                    "today_str": today.strftime('%Y-%m-%d'),
+                    "cutoff_str": cutoff_date.strftime('%Y-%m-%d'),
+                    "arxiv_query": arxiv_query,
+                    "fetch_limit": 30
+                }
+          code_language: python3
+          outputs:
+            arxiv_query:
+              type: string
+            keywords:
+              type: array[string]
+            categories:
+              type: array[string]
+            push_limit:
+              type: number
+            today_str:
+              type: string
+            cutoff_str:
+              type: string
+            fetch_limit:
+              type: number
+          title: 配置加载
+          type: code
+          variables:
+            - value_selector:
+                - env
+                - RESEARCH_TOPICS
+              value_type: string
+              variable: research_topics
+            - value_selector:
+                - env
+                - PUSH_LIMIT
+              value_type: string
+              variable: push_limit
+            - value_selector:
+                - env
+                - ARXIV_CATEGORIES
+              value_type: string
+              variable: arxiv_categories
+        id: 'config'
+        position:
+          x: -100
+          y: -400
+        type: custom
+
+      # ==================== ArXiv 数据抓取 ====================
+      - data:
+          authorization:
+            config: null
+            type: no-auth
+          body:
+            data: []
+            type: none
+          headers: 'User-Agent:AI-Insight-Hub/1.0'
+          method: get
+          params: |-
+            search_query:{{#config.arxiv_query#}}
+            start:0
+            max_results:{{#config.fetch_limit#}}
+            sortBy:submittedDate
+            sortOrder:descending
+          timeout:
+            max_connect_timeout: 10
+            max_read_timeout: 30
+            max_write_timeout: 10
+          title: ArXiv 论文抓取
+          type: http-request
+          url: 'http://export.arxiv.org/api/query'
+          variables: []
+        id: 'arxiv_fetch'
+        position:
+          x: 200
+          y: -400
+        type: custom
+
+      # ==================== ArXiv 结果解析 ====================
+      - data:
+          code: |
+            import xml.etree.ElementTree as ET
+            import json
+            from datetime import datetime
+
+            def main(
+                http_response_body: str,
+                cutoff_str: str,
+                push_limit: int
+            ) -> dict:
+                """
+                解析 ArXiv API 响应，提取论文信息
+                """
+                try:
+                    root = ET.fromstring(http_response_body)
+                    ns = {
+                        'atom': 'http://www.w3.org/2005/Atom',
+                        'arxiv': 'http://arxiv.org/schemas/atom'
+                    }
+
+                    entries = root.findall('atom:entry', ns)
+                    papers = []
+                    cutoff_date = datetime.strptime(cutoff_str, '%Y-%m-%d')
+
+                    for entry in entries[:20]:  # 限制处理数量
+                        # 提取 ID
+                        id_url = entry.find('atom:id', ns).text
+                        arxiv_id = id_url.rsplit('/', 1)[-1].split('v')[0]
+
+                        # 提取发布日期
+                        published_str = entry.find('atom:published', ns).text
+                        pub_date = datetime.strptime(published_str[:10], '%Y-%m-%d')
+
+                        # 提取标题
+                        title = entry.find('atom:title', ns).text
+                        title = title.replace('\n', ' ').strip()
+
+                        # 提取摘要
+                        summary = entry.find('atom:summary', ns).text
+                        summary = summary.replace('\n', ' ').strip()[:500]  # 截断
+
+                        # 提取作者
+                        authors = []
+                        for author in entry.findall('atom:author', ns)[:3]:
+                            name = author.find('atom:name', ns).text
+                            if name:
+                                authors.append(name)
+                        authors_str = ', '.join(authors)
+                        if len(entry.findall('atom:author', ns)) > 3:
+                            authors_str += ' et al.'
+
+                        # PDF 链接
+                        pdf_url = f'https://arxiv.org/pdf/{arxiv_id}.pdf'
+
+                        papers.append({
+                            'arxiv_id': arxiv_id,
+                            'title': title,
+                            'summary': summary,
+                            'authors': authors_str,
+                            'published': published_str[:10],
+                            'pdf_url': pdf_url
+                        })
+
+                    return {
+                        'papers': papers,
+                        'count': len(papers),
+                        'limit': push_limit
+                    }
+
+                except Exception as e:
+                    return {
+                        'papers': [],
+                        'count': 0,
+                        'limit': push_limit,
+                        'error': str(e)
+                    }
+          code_language: python3
+          outputs:
+            papers:
+              type: array[object]
+            count:
+              type: number
+            limit:
+              type: number
+          title: ArXiv 结果解析
+          type: code
+          variables:
+            - value_selector:
+                - 'arxiv_fetch'
+                - body
+              value_type: string
+              variable: http_response_body
+            - value_selector:
+                - 'config'
+                - cutoff_str
+              value_type: string
+              variable: cutoff_str
+            - value_selector:
+                - 'config'
+                - push_limit
+              value_type: number
+              variable: push_limit
+        id: 'arxiv_parse'
+        position:
+          x: 500
+          y: -400
+        type: custom
+
+      # ==================== LLM 智能筛选 ====================
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          model:
+            completion_params:
+              temperature: 0.3
+            mode: chat
+            name: ernie-4.5-turbo-128k-preview
+            provider: paddle-aistudio/ernie-paddle-aistudio/ernie-paddle-aistudio-api
+          prompt_template:
+            - id: filter_prompt
+              role: system
+              text: |
+                # Role
+                你是 AI 领域资深研究员，专注于大模型(LLM)方向。
+
+                # Task
+                从输入的论文中，筛选出最有价值的 {{limit}} 篇。
+
+                # 评分标准
+                1. 影响力：是否可能改变行业方向？
+                2. 新颖性：是否提出了全新方法？
+                3. 相关性：是否与大模型、Agent、RAG 相关？
+
+                # Input
+                论文列表：
+                {{#arxiv_parse.papers#}}
+
+                # Output Format
+                输出 JSON 数组，包含 {{limit}} 篇论文，添加 score(1-10) 和 reason：
+                ```json
+                [
+                  {
+                    "arxiv_id": "...",
+                    "title": "...",
+                    "summary": "...",
+                    "score": 9,
+                    "reason": "..."
+                  }
+                ]
+                ```
+          title: LLM 智能筛选
+          type: llm
+          variables:
+            - value_selector:
+                - 'arxiv_parse'
+                - papers
+              value_type: array[object]
+              variable: papers
+            - value_selector:
+                - 'arxiv_parse'
+                - limit
+              value_type: number
+              variable: limit
+        id: 'llm_filter'
+        position:
+          x: 800
+          y: -400
+        type: custom
+
+      # ==================== JSON 解析 ====================
+      - data:
+          code: |
+            import json
+            import re
+
+            def main(llm_output: str, limit: int) -> dict:
+                """
+                解析 LLM 输出的 JSON
+                """
+                try:
+                    clean_output = llm_output.strip()
+                    json_match = re.search(r'\[.*\]', clean_output, re.DOTALL)
+                    if json_match:
+                        clean_json = json_match.group()
+                    else:
+                        clean_json = clean_output
+
+                    papers = json.loads(clean_json)
+                    if not isinstance(papers, list):
+                        papers = []
+
+                    papers = papers[:limit]
+
+                    return {
+                        'papers': papers,
+                        'count': len(papers)
+                    }
+
+                except Exception as e:
+                    return {
+                        'papers': [],
+                        'count': 0,
+                        'error': str(e)
+                    }
+          code_language: python3
+          outputs:
+            papers:
+              type: array[object]
+            count:
+              type: number
+          title: JSON 解析
+          type: code
+          variables:
+            - value_selector:
+                - 'llm_filter'
+                - text
+              value_type: string
+              variable: llm_output
+            - value_selector:
+                - 'config'
+                - push_limit
+              value_type: number
+              variable: limit
+        id: 'json_parse'
+        position:
+          x: 1100
+          y: -400
+        type: custom
+
+      # ==================== 模板转换 ====================
+      - data:
+          template: |
+            # 🤖 AI Insight Hub 测试报告
+            > {{#config.today_str#}} | 抓取 {{#arxiv_parse.count#}} 篇，筛选 {{#json_parse.count#}} 篇
+
+            ---
+
+            ## 📄 精选论文
+
+            {% for item in json_parse.papers %}
+
+            ### [{{ loop.index }}] {{ item.title }}
+
+            **评分**: {{ item.score }}/10
+
+            **筛选理由**: {{ item.reason }}
+
+            **摘要**: {{ item.summary }}
+
+            **作者**: {{ item.authors }}
+
+            **链接**: [PDF]({{ item.pdf_url }})
+
+            ---
+
+            {% endfor %}
+
+            *测试成功！工作流运行正常。*
+          title: 生成报告
+          type: template-transform
+          variables:
+            - value_selector:
+                - 'config'
+                - today_str
+              value_type: string
+              variable: today_str
+            - value_selector:
+                - 'arxiv_parse'
+                - count
+              value_type: number
+              variable: fetch_count
+            - value_selector:
+                - 'json_parse'
+                - count
+              value_type: number
+              variable: selected_count
+            - value_selector:
+                - 'json_parse'
+                - papers
+              value_type: array[object]
+              variable: papers
+        id: 'template'
+        position:
+          x: 1400
+          y: -400
+        type: custom
+
+      # ==================== 结束节点 ====================
+      - data:
+          outputs:
+            - value_selector:
+                - 'template'
+                - output
+              value_type: string
+              variable: report
+          title: 输出报告
+          type: end
+        id: 'end'
+        position:
+          x: 1700
+          y: -400
+        type: custom
+
+  viewport:
+    x: 0
+    y: 0
+    zoom: 1

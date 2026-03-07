@@ -1,0 +1,13 @@
+{
+  "environment_variables": {
+    "RESEARCH_TOPICS": "LLM, Agent, RAG, Prompt Engineering, Fine-tuning",
+    "PUSH_LIMIT": "5",
+    "ARXIV_CATEGORIES": "cs.CL, cs.AI, cs.LG",
+    "SMTP_USER": "your-email@example.com",
+    "SMTP_PASSWORD": "your-smtp-password",
+    "SMTP_SERVER": "smtp.example.com",
+    "SMTP_PORT": "587",
+    "FEISHU_WEBHOOK": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK"
+  },
+  "description": "AI Insight Hub 环境变量配置示例"
+}
