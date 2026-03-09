@@ -1,0 +1,20 @@
+# Dify Ops Toolkit 依赖
+# 安装: pip install -r requirements.txt
+
+# YAML 解析
+PyYAML>=6.0
+
+# PostgreSQL 数据库连接（二选一）
+psycopg2-binary>=2.9.9  # 预编译版本，推荐开发使用
+# psycopg2>=2.9.9       # 需要编译，生产环境推荐
+
+# 加密支持（用于插件凭据加密）
+cryptography>=41.0.0
+
+# 可选：类型检查支持
+# typing-extensions>=4.0.0  # Python 3.9+ 已内置
+
+# 可选：开发依赖
+# mypy>=1.0.0
+# pytest>=7.0.0
+# ruff>=0.1.0
